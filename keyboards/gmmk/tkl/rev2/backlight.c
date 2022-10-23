@@ -353,6 +353,9 @@ static const uint8_t g_led_chip[DRIVER_LED_TOTAL] = {
 #endif
 };
 
+#define _ME 2
+#define _KP 3
+
 static void set_pwm(uint8_t dev, uint8_t addr, uint8_t value)
 {
     /* >=0x80 for frame 2 otherwise frame 1 */
@@ -403,6 +406,18 @@ void _set_color(int index, uint8_t r, uint8_t g, uint8_t b)
     if (!is_orgb_mode && (index == 67 || index == 41 || index == 51))
         r = g = b = 255;
 #endif
+
+    if (!g_suspend_state) {
+        if ((index == 13 && layer_state_is(_ME))
+        || (index == 15 && layer_state_is(_KP))) {
+            if (128 < rgb_matrix_get_sat()) {
+                r = g = b = 255;
+            } else {
+                g = b = 0;
+                r = 255;
+            }
+        }
+    }
 
     _set_color_direct(index, r, g, b);
 #endif
