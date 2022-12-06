@@ -8,7 +8,9 @@
 #define _KP 3
 
 //Custom keys and macroed keys
+#ifndef _______
 #define _______    KC_TRNS
+#endif
 #define C_CADEL    LCTL(LALT(KC_DEL))
 #define C_FNKEY    0x1688
 #define C_LOCKG    0x1689

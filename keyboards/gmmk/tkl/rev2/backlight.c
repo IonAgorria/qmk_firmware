@@ -407,7 +407,7 @@ void _set_color(int index, uint8_t r, uint8_t g, uint8_t b)
         r = g = b = 255;
 #endif
 
-    if (!g_suspend_state && rgb_matrix_is_enabled()) {
+    if (!rgb_matrix_get_suspend_state() && rgb_matrix_is_enabled()) {
         HSV hsv = rgb_matrix_get_hsv();
         if (0 < hsv.v) {
             if ((index == 13 && layer_state_is(_ME)) //Indicate state of ME layer in PrintScr LED
