@@ -42,7 +42,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                         _______,    _______,    _______,    _______,    _______,    _______,    _______,      _______,    _______,       _______,        _______,        _______,        _______,
                         _______,    _______,    _______,    _______,    _______,    _______,    _______,      _______,    _______,       _______,        _______,        _______,        _______,
                         _______,    _______,    _______,    _______,    _______,    _______,    _______,      _______,    _______,       _______,        _______,        _______,        _______,
-                        _______,    _______,    _______,    _______,    _______,    _______,    _______,      _______,    _______,       _______),
+                        _______,    C_MEKEY,    _______,    _______,    _______,    _______,    _______,      _______,    _______,       _______),
 
     //Numpad layer
     [_KP] = KEYMAP(     _______,    _______,    _______,    _______,    _______,    _______,    _______,      _______,    _______,       _______,        _______,        _______,        _______,
@@ -51,7 +51,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                         _______,    _______,    _______,    _______,    _______,    _______,    _______,      _______,    KC_KP_4,       KC_KP_5,        KC_KP_6,        KC_KP_ENTER,    _______,
                         _______,    _______,    _______,    _______,    _______,    _______,    _______,      _______,    KC_KP_1,       KC_KP_2,        KC_KP_3,        _______,        _______,
                         _______,    _______,    _______,    _______,    KC_KP_0,    KC_KP_DOT,  KC_KP_ENTER,  _______,    _______,       _______,        _______,        _______,        _______,
-                        _______,    _______,    _______,    _______,    _______,    _______,    _______,      _______,    _______,       _______)
+                        _______,    _______,    _______,    TG(_KP),    _______,    _______,    _______,      _______,    _______,       _______)
 };
 
 void matrix_init_user(void) {
@@ -69,7 +69,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record)
 {
     switch (keycode) {
         case C_FNKEY: {
-            /* Only unset media keys if layer wasn't already enabled before pressing FN key */
+            // Only unset media keys if layer wasn't already enabled before pressing FN key
             if (record->event.pressed) {
                 layer_on(_FN);
                 if (!media_keys_on) {
@@ -80,22 +80,32 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record)
                 if (!media_keys_on) {
                     layer_off(_ME);
                     //Manually set color when off as set_color wont be called
+                    /*
                     if (!rgb_matrix_is_enabled()) {
                         rgb_matrix_set_color(13, 0, 0, 0);
                     }
+                    */
                 }
             }
             return false;
         }
         case C_MEKEY: {
-            /* Toggle media key */
+            //Toggle media key
             if (record->event.pressed) {
                 media_keys_on = !media_keys_on;
+            }
+            //Set layer state if FN is not active
+            if (!layer_state_is(_FN)) {
+                if (media_keys_on) {
+                    layer_on(_ME);
+                } else {
+                    layer_off(_ME);
+                }
             }
             return false;
         }
         case C_LOCKG: {
-            /* win lock */
+            //Win key lock
             if (record->event.pressed) {
                 keymap_config.raw = eeconfig_read_keymap();
                 keymap_config.no_gui = !keymap_config.no_gui;
@@ -117,31 +127,3 @@ bool led_update_user(led_t led_state) {
     writePin(LED_RIGHT_PIN, right_state ? LED_PIN_ON_STATE : !LED_PIN_ON_STATE);
     return false;
 }
-
-/*
-void set_key_led_indicator(int index, bool state) {
-    HSV hsv = rgb_matrix_get_hsv();
-    if (state && !g_suspend_state) {
-        //Indicate active state
-        if (hsv.s < 128) {
-            //Use red as saturation is too low
-            rgb_matrix_set_color(index, 255, 0, 0);
-        } else {
-            //Use white as there is a defined color
-            rgb_matrix_set_color(index, 255, 255, 255);
-        }
-    } else {
-        //Inactive, restore rgb color
-        RGB rgb = hsv_to_rgb(hsv);
-        rgb_matrix_set_color(index, rgb.r, rgb.g, rgb.b);
-    }
-}
-
-
-void rgb_matrix_indicators_user(void) {
-    //PrintScr
-    set_key_led_indicator(13, layer_state_is(_ME));
-    //Pause
-    set_key_led_indicator(15, layer_state_is(_KP));
-}
-*/

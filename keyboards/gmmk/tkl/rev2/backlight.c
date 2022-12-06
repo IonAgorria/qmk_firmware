@@ -51,7 +51,7 @@ static __inline void i2c_delay(uint32_t loop)
 }
 
 void i2c_init(void)
-{   
+{
     // drive strength all gpio A 20ma
     SN_GPIO0->MODE |= 0xFFFF0000;
 
@@ -104,12 +104,12 @@ static uint8_t i2c_writeb(uint8_t b)
 */
     /* ack bit */
     setPinInput(I2C_SDA);
-    
+
     I2C_SCL_HI;
     I2C_DELAY;
-    
+
     fail = I2C_SDA_IN;
-    
+
     I2C_SCL_LO;
     I2C_DELAY;
 
@@ -158,16 +158,16 @@ static uint8_t i2c_transaction(uint8_t i2c_addr_rw, uint8_t* i2c_data_ptr, uint8
 static uint8_t i2c_write_buf(uint8_t devid, uint8_t* data, uint8_t len)
 {
     int32_t tries = 1;
-    
+
     while ((tries-- > 0) && i2c_transaction(devid, data, len));
-    
+
     return 0;
 }
 
 static void i2c_write_reg(uint8_t devid, uint8_t reg, uint8_t data)
 {
     uint8_t i2c_data[2];
-    
+
     i2c_data[0] = reg;
     i2c_data[1] = data;
 
@@ -276,7 +276,7 @@ static void flush_led_fb(uint8_t devid, const uint8_t *map)
         if (i <= 1)
             block_size = 48;
         else
-            block_size = 32;            
+            block_size = 32;
 
         for (j = 0; j < block_size; j++)
             i2c_writeb(block[j]);
@@ -335,7 +335,7 @@ static const uint8_t g_led_pos[DRIVER_LED_TOTAL] = {
 /*91*/ 0x03,0x04,0x05,0x07,0x09,0x0A,0x0B,0x0D,0x0E,0x0F,0x3B
 #ifdef KEYMAP_ISO
        ,0x04 /* KC_NUBS */
-#endif    
+#endif
 };
 
 /*
@@ -375,7 +375,7 @@ static void set_pwm(uint8_t dev, uint8_t addr, uint8_t value)
 }
 
 static void _set_color_direct(int index, uint8_t r, uint8_t g, uint8_t b)
-{   
+{
     uint8_t dev;
     int l = g_led_pos[index];
 
@@ -407,14 +407,18 @@ void _set_color(int index, uint8_t r, uint8_t g, uint8_t b)
         r = g = b = 255;
 #endif
 
-    if (!g_suspend_state) {
-        if ((index == 13 && layer_state_is(_ME))
-        || (index == 15 && layer_state_is(_KP))) {
-            if (128 < rgb_matrix_get_sat()) {
-                r = g = b = 255;
-            } else {
-                g = b = 0;
-                r = 255;
+    if (!g_suspend_state && rgb_matrix_is_enabled()) {
+        HSV hsv = rgb_matrix_get_hsv();
+        if (0 < hsv.v) {
+            if ((index == 13 && layer_state_is(_ME)) //Indicate state of ME layer in PrintScr LED
+             || (index == 15 && layer_state_is(_KP)) //Indicate state of KP layer in Pause LED
+            ) {
+                if (128 < hsv.s) {
+                    r = g = b = 255;
+                } else {
+                    g = b = 0;
+                    r = 255;
+                }
             }
         }
     }
@@ -446,12 +450,12 @@ void process_backlight(uint8_t devid, volatile LED_TYPE *states)
 
         case 1:
         #ifdef USE_FRAMEBUFFER
-            
-        #ifdef VIA_OPENRGB_HYBRID            
+
+        #ifdef VIA_OPENRGB_HYBRID
             if (!is_orgb_mode) {
                 rgb_matrix_set_color(67, 255, 255, 255);
                 rgb_matrix_set_color(41, 255, 255, 255);
-                rgb_matrix_set_color(51, 255, 255, 255);                    
+                rgb_matrix_set_color(51, 255, 255, 255);
             }
         #endif
 
