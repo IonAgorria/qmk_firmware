@@ -14,6 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if defined(ENABLE_FACTORY_TEST)
+
 #include "quantum.h"
 #include "raw_hid.h"
 #ifdef KC_BLUETOOTH_ENABLE
@@ -343,3 +345,5 @@ bool dip_switch_update_user(uint8_t index, bool active) {
     return true;
 }
 #endif
+
+#endif //ENABLE_FACTORY_TEST
