@@ -330,6 +330,7 @@ void factory_test_rx(uint8_t *data, uint8_t length) {
     }
 }
 
+#if !defined(KEYCHRON_DIP_SWITCH_USER)
 bool dip_switch_update_user(uint8_t index, bool active) {
     if (report_os_sw_state) {
 #ifdef INVERT_OS_SWITCH_STATE
@@ -341,3 +342,4 @@ bool dip_switch_update_user(uint8_t index, bool active) {
 
     return true;
 }
+#endif

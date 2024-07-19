@@ -29,12 +29,12 @@
 
 #ifdef DIP_SWITCH_ENABLE
 bool dip_switch_update_kb(uint8_t index, bool active) {
+#if !defined(KEYCHRON_DIP_SWITCH_USER)
     if (index == 0) {
         default_layer_set(1UL << (active ? 2 : 0));
     }
-    dip_switch_update_user(index, active);
-
-    return true;
+#endif
+    return dip_switch_update_user(index, active);
 }
 #endif
 
