@@ -56,8 +56,8 @@ RGB_MATRIX_ENABLE = yes
 RGB_MATRIX_DRIVER = custom
 RAW_ENABLE = yes
 
-# ENCODER_ENABLE = yes
-# OPENRGB_ENABLE = yes
+ENCODER_ENABLE = no
+OPENRGB_ENABLE = no
 
 # some options to reduce ram usage
 LDFLAGS += --specs=nano.specs
