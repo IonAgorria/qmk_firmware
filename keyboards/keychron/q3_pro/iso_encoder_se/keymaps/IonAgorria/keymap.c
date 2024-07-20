@@ -57,12 +57,13 @@ enum rgb_led_indexes {
 };
 
 enum knob_mode_t {
-    KNOB_MODE_JOY = 0,
-    KNOB_MODE_VOL,
+    KNOB_MODE_JOY_X = 0,
+    KNOB_MODE_JOY_Y,
+    KNOB_MODE_JOY_T,
     KNOB_MODE_MAX
 } knob_mode;
 
-static int16_t joy_val = 0;
+static int16_t joy_val[JOYSTICK_AXIS_COUNT] = { 0, 0, 0 };
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [LA_BASE] = LAYOUT_93_iso(
@@ -122,7 +123,9 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 };
 
 joystick_config_t joystick_axes[JOYSTICK_AXIS_COUNT] = {
-    JOYSTICK_AXIS_VIRTUAL //x
+    JOYSTICK_AXIS_VIRTUAL, //x
+    JOYSTICK_AXIS_VIRTUAL, //y
+    JOYSTICK_AXIS_VIRTUAL
 };
 
 void handle_diacritic_key(keyevent_t* event, uint16_t kc) {
@@ -146,12 +149,14 @@ bool process_record_user(uint16_t keycode,  keyrecord_t *record)
         default:
             break;
         case C_RGB_TOG: {
-            if (!rgb_matrix_is_enabled()) {
-                rgb_matrix_enable();
+            if (!record->event.pressed) {
+                if (!rgb_matrix_is_enabled()) {
+                    rgb_matrix_enable();
+                }
+                HSV hsv = rgb_matrix_get_hsv();
+                hsv.v = hsv.v != 0 ? 0 : RGB_MATRIX_MAXIMUM_BRIGHTNESS;
+                rgb_matrix_sethsv(hsv.h, hsv.s, hsv.v);
             }
-            HSV hsv = rgb_matrix_get_hsv();
-            hsv.v = hsv.v != 0 ? 0 : RGB_MATRIX_MAXIMUM_BRIGHTNESS;
-            rgb_matrix_sethsv(hsv.h, hsv.s, hsv.v);
             return false;
         }
         case C_M4_FN: {
@@ -172,23 +177,32 @@ bool process_record_user(uint16_t keycode,  keyrecord_t *record)
             static int knob_mode_pressed = KNOB_MODE_MAX;
             if (record->event.pressed) {
                 //Knob pressed
-                if (knob_mode == KNOB_MODE_VOL) {
-                    knob_mode_pressed = KNOB_MODE_VOL;
-                    register_code(KC_MUTE);
-                } else if (layer_state_is(LA_FN)) {
-                    joy_val = 0;
-                    joystick_set_axis(0, 0);
+                if (layer_state_is(LA_FN)) {
+                    int joy_index = -1;
+                    switch (knob_mode) {
+                        case KNOB_MODE_JOY_X:
+                            joy_index = 0;
+                            break;
+                        case KNOB_MODE_JOY_Y:
+                            joy_index = 1;
+                            break;
+                        case KNOB_MODE_JOY_T:
+                            joy_index = 2;
+                            break;
+                        default:
+                            break;
+                    }
+                    if (0 <= joy_index) {
+                        joy_val[joy_index] = 0;
+                        joystick_set_axis(joy_index, 0);
+                    }
                 } else {
-                    knob_mode_pressed = KNOB_MODE_JOY;
+                    knob_mode_pressed = knob_mode;
                     register_joystick_button(0);
                 }
             } else if (knob_mode_pressed != KNOB_MODE_MAX) {
                 //Knob unpressed
-                if (knob_mode_pressed == KNOB_MODE_VOL) {
-                    unregister_code(KC_MUTE);
-                } else if (knob_mode_pressed == KNOB_MODE_JOY) {
-                    unregister_joystick_button(0);
-                }
+                unregister_joystick_button(0);
                 knob_mode_pressed = KNOB_MODE_MAX;
             }
             return false;
@@ -240,71 +254,97 @@ bool encoder_update_user(uint8_t index, bool clockwise) {
         return true;
     }
     bool is_fn = IS_LAYER_ON(LA_FN);
+    int joy_index = -1;
     switch (knob_mode) {
-        case KNOB_MODE_JOY:
+        case KNOB_MODE_JOY_X:
+        case KNOB_MODE_JOY_Y: {
+            joy_index = knob_mode == KNOB_MODE_JOY_X ? 0 : 1;
             int16_t change = is_fn ? 4 : 16;
             if (!clockwise) change = -change;
-            joy_val += change;
-
-            //Keep internal joystick value consistent so it can be set 0 back
-            const int16_t joy_max = 128;
-            if (joy_val < -joy_max) joy_val = -joy_max;
-            else if (joy_val > joy_max) joy_val = joy_max;
-
-            //Device reports values as 8 bits, so need to limit it
-            const int16_t axis_max = 127;
-            int16_t axis_val = joy_val;
-            if (axis_val < -axis_max) axis_val = -axis_max;
-            else if (axis_val > axis_max) axis_val = axis_max;
-
-            joystick_set_axis(0, axis_val);
-
-            return false;
-        case KNOB_MODE_VOL:
-            tap_code(clockwise ? KC_VOLU : KC_VOLD);
-            return false;
-        default:
+            joy_val[joy_index] += change;
             break;
+        }
+
+        case KNOB_MODE_JOY_T: {
+            joy_index = 2;
+            int16_t change = is_fn ? 2 : 8;
+            if (!clockwise) change = -change;
+            joy_val[joy_index] += change;
+
+            if (joy_val[joy_index] < 0) joy_val[joy_index] = 0;
+
+            break;
+        }
+
+        default:
+            return true;
     }
-    return true;
+    if (0 <= joy_index) {
+        //Keep internal joystick value consistent so it can be set 0 back
+        const int16_t joy_max = 128;
+        if (joy_val[joy_index] < -joy_max) joy_val[joy_index] = -joy_max;
+        else if (joy_val[joy_index] > joy_max) joy_val[joy_index] = joy_max;
+
+        //Device reports values as 8 bits, so need to limit it
+        const int16_t axis_max = 127;
+        int16_t axis_val = joy_val[joy_index];
+        if (axis_val < -axis_max) axis_val = -axis_max;
+        else if (axis_val > axis_max) axis_val = axis_max;
+
+        joystick_set_axis(joy_index, axis_val);
+    }
+
+
+    return false;
 }
 
-void rgb_matrix_set_indicator(HSV hsv, uint8_t led, bool state) {
-    if (state) {
-        hsv.v = RGB_MATRIX_MAXIMUM_BRIGHTNESS;
-        if (192 <= hsv.s) {
-            hsv.s = 0;
-        } else {
-            hsv.s = 255;
-        }
-    }
+void rgb_matrix_set_indicator(HSV hsv, uint8_t led) {
     RGB rgb = hsv_to_rgb(hsv);
     rgb_matrix_set_color(led, rgb.r, rgb.g, rgb.b);
 }
 
-#define RGB_MATRIX_SET_INDICATOR(hsv, led, enabled, state) \
-    if ((enabled) && led >= led_min && led < led_max) {             \
-        rgb_matrix_set_indicator(hsv, led, state);          \
+#define RGB_MATRIX_SET_INDICATOR(hsv, led, enabled) \
+    if ((enabled) && led >= led_min && led < led_max) { \
+        rgb_matrix_set_indicator(hsv, led); \
     }
 
 
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     HSV hsv = rgb_matrix_get_hsv();
+    hsv.v = RGB_MATRIX_MAXIMUM_BRIGHTNESS;
+    hsv.s = 192 <= hsv.s ? 0 : 255;
     led_t led_state = host_keyboard_led_state();
     bool is_fn = IS_LAYER_ON(LA_FN);
     bool is_kp = IS_LAYER_ON(LA_KEYPAD);
 
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_PRINT_SCR, is_fn, true);
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_SCROLL_LOCK, led_state.scroll_lock, true);
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_PAUSE, is_kp, true);
+    HSV hsv_mc3 = hsv;
+    hsv_mc3.s = 255;
+    bool led_mc3_on = true;
+    switch (knob_mode) {
+        case KNOB_MODE_JOY_X:
+            led_mc3_on = false;
+            break;
+        case KNOB_MODE_JOY_Y:
+            hsv_mc3.h = 0;
+            break;
+        case KNOB_MODE_JOY_T:
+            hsv_mc3.h = 85;
+            break;
+        default:
+            break;
+    }
 
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_CAPS_LOCK, led_state.caps_lock, true);
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_8, is_kp && led_state.num_lock, true);
+    RGB_MATRIX_SET_INDICATOR(hsv, LED_PRINT_SCR, is_fn);
+    RGB_MATRIX_SET_INDICATOR(hsv, LED_SCROLL_LOCK, led_state.scroll_lock);
+    RGB_MATRIX_SET_INDICATOR(hsv, LED_PAUSE, is_kp);
 
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_MC1, IS_LAYER_ON(LA_CU_BASE), true);
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_MC2, is_kp, true);
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_MC3, knob_mode == KNOB_MODE_VOL, true);
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_MC4, is_fn, true);
+    RGB_MATRIX_SET_INDICATOR(hsv, LED_CAPS_LOCK, led_state.caps_lock);
+    RGB_MATRIX_SET_INDICATOR(hsv, LED_8, is_kp && led_state.num_lock);
+
+    RGB_MATRIX_SET_INDICATOR(hsv, LED_MC1, IS_LAYER_ON(LA_CU_BASE));
+    RGB_MATRIX_SET_INDICATOR(hsv, LED_MC2, is_kp);
+    RGB_MATRIX_SET_INDICATOR(hsv_mc3, LED_MC3, led_mc3_on);
+    RGB_MATRIX_SET_INDICATOR(hsv, LED_MC4, is_fn);
 
     return false;
 }
