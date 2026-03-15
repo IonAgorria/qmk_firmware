@@ -20,7 +20,7 @@
 #define C_LSCU     LT(LA_CU_SHIFT, KC_LSFT)
 #define C_RSCU     LT(LA_CU_SHIFT, KC_RSFT)
 #define C_RACU     LT(LA_CU_ALTGR, KC_RALT)
-#define C_SCRL     LT(LA_FN, KC_SCRL)
+#define C_SCRL     TT(LA_FN)
 #define C_TGCU     TG(LA_CU_BASE)
 #define C_TGKP     TG(LA_KEYPAD)
 #define RA(kc)     RALT(kc)
@@ -39,28 +39,29 @@ enum custom_keycodes {
     CL_BKTK = SAFE_RANGE,
     CL_CARET,
     CL_TILDE,
-    C_M4_FN,
-    C_KNOB_SW,
+    C_KNOB_FN,
     C_KNOB_BTN,
     C_RGB_TOG,
 };
 
 enum rgb_led_indexes {
     LED_F12 = 12,
-    LED_PRINT_SCR = 13,
+    LED_PRINT_SCR,
     LED_SCROLL_LOCK,
     LED_PAUSE,
     LED_8 = 24,
     LED_CAPS_LOCK = 51,
-    LED_COMMA = 80,
 };
 
 enum knob_mode_t {
-    KNOB_MODE_JOY_X = 0,
+    KNOB_MODE_DEFAULT = 0,
+    KNOB_MODE_VOL = 0,
+    KNOB_MODE_KP = 1,
+    KNOB_MODE_JOY_X = 2,
     KNOB_MODE_MAX
 } knob_mode;
 
-static int16_t joy_val[JOYSTICK_AXIS_COUNT] = { 0, };
+static int16_t joy_val[JOYSTICK_AXIS_COUNT] = { };
 
 #if defined(ENCODER_MAP_ENABLE)
 const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
@@ -75,7 +76,7 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [LA_BASE] = LAYOUT_tkl_iso(
-        KC_ESC,      KC_F1,       KC_F2,       KC_F3,       KC_F4,       KC_F5,       KC_F6,       KC_F7,       KC_F8,       KC_F9,       KC_F10,      KC_F11,      KC_F12,        C_KNOB_BTN,  KC_PSCR,     C_M4_FN,     KC_PAUS,
+        KC_ESC,      KC_F1,       KC_F2,       KC_F3,       KC_F4,       KC_F5,       KC_F6,       KC_F7,       KC_F8,       KC_F9,       KC_F10,      KC_F11,      KC_F12,        C_KNOB_BTN,  KC_PSCR,     C_SCRL,      KC_PAUS,
         KC_GRV,      KC_1,        KC_2,        KC_3,        KC_4,        KC_5,        KC_6,        KC_7,        KC_8,        KC_9,        KC_0,        KC_MINS,     KC_EQL,        KC_BSPC,     KC_INS,      KC_HOME,     KC_PGUP,
         KC_TAB,      KC_Q,        KC_W,        KC_E,        KC_R,        KC_T,        KC_Y,        KC_U,        KC_I,        KC_O,        KC_P,        KC_LBRC,     KC_RBRC,                    KC_DEL,      KC_END,      KC_PGDN,
         KC_CAPS,     KC_A,        KC_S,        KC_D,        KC_F,        KC_G,        KC_H,        KC_J,        KC_K,        KC_L,        KC_SCLN,     KC_QUOT,     KC_NUHS,       KC_ENT,
@@ -120,10 +121,10 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     ),
 
     [LA_FN] = LAYOUT_tkl_iso(
-        QK_RBT,      KC_BRID,     KC_BRIU,     KC_TASK,     KC_FILE,     RGB_VAD,     RGB_VAI,     KC_MPRV,     KC_MPLY,     KC_MNXT,     KC_MUTE,     KC_VOLD,     KC_VOLU,       C_KNOB_SW,   C_TGCU,      _______,     C_TGKP,
+        QK_RBT,      KC_BRID,     KC_BRIU,     KC_TASK,     KC_FILE,     RGB_VAD,     RGB_VAI,     KC_MPRV,     KC_MPLY,     KC_MNXT,     KC_MUTE,     KC_VOLD,     KC_VOLU,       C_KNOB_FN,   C_TGCU,      _______,     C_TGKP,
         _______,     BT_HST1,     BT_HST2,     BT_HST3,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,       QK_BOOT,     RGB_M_P,     C_RGB_TOG,   RGB_MOD,
         _______,     _______,     _______,     EE_CLR,      _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,                    RGB_HUI,     RGB_SAI,     RGB_SPI,
-        _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,       _______,
+        KC_SCRL,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,     _______,       _______,
         _______,     _______,     _______,     _______,     _______,     _______,     BAT_LVL,     NK_TOGG,     _______,     _______,     _______,     _______,                    _______,                  _______,
         _______,     _______,     _______,                                            _______,                                            _______,     _______,     _______,       _______,     _______,     _______,     _______
     )
@@ -164,54 +165,64 @@ bool process_record_user(uint16_t keycode,  keyrecord_t *record)
             }
             return false;
         }
-        case C_M4_FN: {
-            static unsigned int last_time = 0;
-            if (record->event.pressed) {
-                last_time = record->event.time;
-                layer_on(LA_FN);
-            } else {
-                if (timer_elapsed(last_time) <= TAPPING_TERM) {
-                    register_joystick_button(4);
-                    unregister_joystick_button(4);
-                }
-                layer_off(LA_FN);
-            }
-            return false;
-        }
         case C_KNOB_BTN: {
             static int knob_mode_pressed = KNOB_MODE_MAX;
             if (record->event.pressed) {
                 //Knob pressed
-                if (get_mods() & MOD_MASK_SHIFT) {
-                    int joy_index = -1;
-                    switch (knob_mode) {
-                        case KNOB_MODE_JOY_X:
-                            joy_index = 0;
-                            break;
-                        default:
-                            break;
-                    }
-                    if (0 <= joy_index) {
-                        joy_val[joy_index] = 0;
-                        joystick_set_axis(joy_index, 0);
-                    }
-                } else {
-                    knob_mode_pressed = knob_mode;
-                    register_joystick_button(0);
+                knob_mode_pressed = knob_mode;
+                switch (knob_mode_pressed) {
+                    case KNOB_MODE_JOY_X:
+                        register_joystick_button(0);
+                        break;
+                    case KNOB_MODE_VOL:
+                        register_code(KC_MUTE);
+                        break;
+                    case KNOB_MODE_KP:
+                        register_code(KC_KP_5);
+                        break;
+                    default:
+                        break;
                 }
             } else if (knob_mode_pressed != KNOB_MODE_MAX) {
                 //Knob unpressed
-                unregister_joystick_button(0);
+                switch (knob_mode_pressed) {
+                    case KNOB_MODE_JOY_X:
+                        unregister_joystick_button(0);
+                        break;
+                    case KNOB_MODE_VOL:
+                        unregister_code(KC_MUTE);
+                        break;
+                    case KNOB_MODE_KP:
+                        unregister_code(KC_KP_5);
+                        break;
+                    default:
+                        break;
+                }
                 knob_mode_pressed = KNOB_MODE_MAX;
             }
             return false;
         }
-        case C_KNOB_SW: {
+        case C_KNOB_FN: {
             if (record->event.pressed) {
+                //*
                 knob_mode++;
                 if (knob_mode >= KNOB_MODE_MAX) {
                     knob_mode = 0;
                 }
+                /*/
+                int joy_index = -1;
+                switch (knob_mode) {
+                    case KNOB_MODE_JOY_X:
+                        joy_index = 0;
+                        break;
+                    default:
+                        break;
+                }
+                if (0 <= joy_index) {
+                    joy_val[joy_index] = 0;
+                    joystick_set_axis(joy_index, 0);
+                }
+                */
             }
             return false;
         }
@@ -256,12 +267,18 @@ bool encoder_update_user(uint8_t index, bool clockwise) {
     int joy_index = -1;
     switch (knob_mode) {
         case KNOB_MODE_JOY_X: {
-            joy_index = knob_mode == KNOB_MODE_JOY_X ? 0 : 1;
+            joy_index = 0;
             int16_t change = is_fn ? 4 : 16;
             if (!clockwise) change = -change;
             joy_val[joy_index] += change;
             break;
         }
+        case KNOB_MODE_VOL:
+            tap_code(clockwise ? KC_VOLU : KC_VOLD);
+            break;
+        case KNOB_MODE_KP:
+            tap_code(clockwise ? KC_KP_6 : KC_KP_4);
+            break;
 
         default:
             return true;
@@ -308,11 +325,25 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     hsv_knob.s = 255;
     bool led_knob_on = true;
     switch (knob_mode) {
-        case KNOB_MODE_JOY_X:
+        case 0:
             led_knob_on = false;
             break;
-        default:
+        case 1:
+            hsv_knob.h = (hsv.v < 10 || hsv.v > 200) ? 169 : 0;
             break;
+        case 2:
+            hsv_knob.h = 85;
+            break;
+        default:
+            hsv_knob.s = hsv.s;
+            break;
+    }
+
+    HSV hsv_kp = hsv;
+    bool led_kp_on = is_kp;
+    if (led_state.num_lock) {
+        hsv_kp.s = 255;
+        hsv_kp.h = (hsv.v < 10 || hsv.v > 200) ? 169 : 0;
     }
 
     RGB_MATRIX_SET_INDICATOR(hsv, LED_PRINT_SCR, is_fn);
@@ -320,8 +351,7 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     RGB_MATRIX_SET_INDICATOR(hsv, LED_PAUSE, IS_LAYER_ON(LA_CU_BASE));
 
     RGB_MATRIX_SET_INDICATOR(hsv, LED_CAPS_LOCK, led_state.caps_lock);
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_8, is_kp && led_state.num_lock);
-    RGB_MATRIX_SET_INDICATOR(hsv, LED_COMMA, is_kp);
+    RGB_MATRIX_SET_INDICATOR(hsv_kp, LED_8, led_kp_on);
     RGB_MATRIX_SET_INDICATOR(hsv_knob, LED_F12, led_knob_on);
 
     return false;
